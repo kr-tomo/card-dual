@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#17133a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="카드 대결">
+<title>카드 기억 대결</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+:root{
+  --bg:#17133a; --bg2:#2d2175; --p1:#4cc3ff; --p2:#ff7a9c; --gold:#ffd24a;
+  --st:env(safe-area-inset-top,0px); --sr:env(safe-area-inset-right,0px);
+  --sb:env(safe-area-inset-bottom,0px); --sl:env(safe-area-inset-left,0px);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;touch-action:manipulation;background:var(--bg);color:#fff;
+  font-family:system-ui,-apple-system,"Apple SD Gothic Neo","Noto Sans KR","Segoe UI",sans-serif}
+button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;touch-action:manipulation}
+
+#app{position:fixed;left:0;top:0;width:100%;height:100vh;height:100dvh;
+  padding:calc(6px + var(--st)) calc(6px + var(--sr)) calc(6px + var(--sb)) calc(6px + var(--sl));
+  display:grid;gap:6px;grid-template-columns:1fr 1fr;grid-template-rows:auto minmax(0,1fr) auto;
+  grid-template-areas:"p1 p2" "board board" "ctrl ctrl";
+  background:radial-gradient(120% 90% at 50% 0%,var(--bg2),var(--bg) 70%)}
+
+/* ── 플레이어 패널 ── */
+.panel{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:14px;min-width:0;
+  background:rgba(255,255,255,.08);border:2px solid transparent;opacity:.72;transition:opacity .25s,border-color .25s,box-shadow .25s}
+#panel0{grid-area:p1}#panel1{grid-area:p2}
+.panel.active{opacity:1}
+#panel0.active{border-color:var(--p1);box-shadow:0 0 14px rgba(76,195,255,.45)}
+#panel1.active{border-color:var(--p2);box-shadow:0 0 14px rgba(255,122,156,.45)}
+.info{flex:1;min-width:0}
+.nick{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden}
+.nick span{overflow:hidden;text-overflow:ellipsis}
+.dot{flex:none;width:9px;height:9px;border-radius:50%}
+#panel0 .dot{background:var(--p1)}#panel1 .dot{background:var(--p2)}
+.panel.active .nick span::before{content:"▶ "}
+.score{font-size:26px;font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums}
+.score.bump{animation:bump .45s}
+@keyframes bump{40%{transform:scale(1.4)}}
+.acts{display:flex;gap:6px;flex:none}
+.act{position:relative;width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.14);
+  display:grid;place-items:center;border:2px solid transparent}
+.act .ic{font-size:19px;line-height:1}
+.act b{position:absolute;right:-5px;top:-6px;min-width:18px;height:18px;border-radius:9px;padding:0 4px;
+  background:#fff;color:#1d1745;font-size:11px;display:grid;place-items:center}
+.act.setup{border:2px dashed rgba(255,255,255,.65)}
+.act.dis{opacity:.32}
+.act.on{background:var(--gold);box-shadow:0 0 12px var(--gold)}
+.act.placed::after{content:"";position:absolute;left:3px;bottom:3px;width:7px;height:7px;border-radius:50%;background:var(--gold)}
+
+/* ── 보드 ── */
+#board{grid-area:board;position:relative;min-width:0;min-height:0}
+#grid{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:grid}
+.card{position:relative;perspective:700px;cursor:pointer}
+.inner{position:absolute;inset:0;transform-style:preserve-3d;transition:transform .35s}
+.card.flipped .inner{transform:rotateY(180deg)}
+.face{position:absolute;inset:0;border-radius:var(--r);backface-visibility:hidden;-webkit-backface-visibility:hidden;
+  display:flex;align-items:center;justify-content:center;overflow:hidden}
+.back{background:radial-gradient(circle at 30% 22%,#8d6bff,#4a35b8 62%,#32238a);
+  border:2px solid rgba(255,255,255,.28);box-shadow:0 2px 5px rgba(0,0,0,.4)}
+.nosprite .back::after{content:"?";font-size:calc(var(--fs)*.85);font-weight:800;color:rgba(255,255,255,.3)}
+/* 스프라이트: 시트 한 장에서 칸 번호로 그림을 잘라 쓴다 (--sheet/--cols/--rows 는 JS가 themes/config.js 값으로 설정) */
+.img{display:block;flex:none;width:var(--img);height:var(--img);background-repeat:no-repeat;background-image:var(--sheet);
+  background-size:calc(var(--cols)*100%) calc(var(--rows)*100%);pointer-events:none}
+.back .img{width:calc(var(--img)*.9);height:calc(var(--img)*.9)}
+.nosprite .img{display:none}
+.nosprite .sym{display:block}
+.front{transform:rotateY(180deg);background:#fff;border:2px solid #e6e1ff;color:#222}
+.sym{display:none;font-size:var(--fs);line-height:1;font-family:"Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif}
+.badge{display:none;position:absolute;right:6%;top:3%;font-style:normal;font-weight:800;color:#a05a00;font-size:calc(var(--fs)*.34)}
+.card.gold .front{background:linear-gradient(145deg,#fff6bd,#ffd24a);border-color:#ffb300;box-shadow:0 0 14px var(--gold)}
+.card.gold .badge{display:block}
+.card.matched .front{background:#f3f0ff}
+.card.matched.gold .front{background:linear-gradient(145deg,#fff6bd,#ffd24a)}
+.card.m0 .front{box-shadow:inset 0 0 0 max(3px,calc(var(--r)*.28)) var(--p1)}
+.card.m1 .front{box-shadow:inset 0 0 0 max(3px,calc(var(--r)*.28)) var(--p2)}
+.card.matched{opacity:.88}
+.stone{display:none;position:absolute;inset:0;z-index:3;align-items:center;justify-content:center;pointer-events:none;
+  border-radius:var(--r);background:rgba(18,14,48,.62);font-size:var(--fs);line-height:1;border:3px solid #999}
+.card.stoned .stone{display:flex;animation:drop .28s ease-out}
+.card.s0 .stone{border-color:var(--p1)}.card.s1 .stone{border-color:var(--p2)}
+@keyframes drop{from{transform:translateY(-40%) scale(1.3);opacity:0}}
+.card.target .back{animation:pulse .8s infinite alternate}
+@keyframes pulse{to{box-shadow:inset 0 0 0 3px var(--gold),0 0 12px var(--gold)}}
+
+#toast{position:absolute;left:50%;top:8px;transform:translate(-50%,-8px);max-width:94%;padding:8px 14px;border-radius:999px;
+  background:rgba(10,8,30,.86);font-size:14px;font-weight:700;text-align:center;opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .2s;z-index:30}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+#pill{position:absolute;left:50%;bottom:6px;transform:translateX(-50%);max-width:94%;padding:5px 12px;border-radius:999px;
+  background:rgba(10,8,30,.6);font-size:11.5px;text-align:center;pointer-events:none;z-index:20;white-space:nowrap}
+#pill.hide{display:none}
+
+/* ── 하단 컨트롤 ── */
+#ctrl{grid-area:ctrl;display:flex;gap:6px;align-items:center}
+.seg{display:flex;gap:4px;flex:1;min-width:0}
+.seg button{flex:1;min-width:0;height:40px;border-radius:10px;background:rgba(255,255,255,.12);font-size:13px;font-weight:700}
+.seg button.on{background:#fff;color:#2a1f6b}
+.seg button.dis,.sq.dis{opacity:.38}
+.sq{flex:none;width:40px;height:40px;border-radius:10px;background:rgba(255,255,255,.12);font-size:18px;display:grid;place-items:center}
+#gold.on{background:var(--gold);color:#5b3b00;box-shadow:0 0 10px var(--gold)}
+
+/* ── 모달 ── */
+#modal{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.62)}
+#modal.hidden{display:none}
+.box{width:min(86vw,340px);padding:22px 18px 18px;border-radius:20px;background:#2b2073;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.box h2{margin:0 0 8px;font-size:21px}
+#mBody{font-size:15px;opacity:.9;margin-bottom:16px}
+#mBtns{display:flex;gap:8px}
+#mBtns button{flex:1;height:44px;border-radius:12px;background:rgba(255,255,255,.16);font-weight:700;font-size:15px}
+#mBtns button.primary{background:var(--gold);color:#4a3000}
+.themes{display:flex;flex-direction:column;gap:8px;max-height:52vh;overflow-y:auto;overscroll-behavior:contain;text-align:left}
+.theme{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.1);border:2px solid transparent;min-height:50px}
+.theme.on{border-color:var(--gold);background:rgba(255,210,74,.16)}
+.thumbs{display:flex;gap:2px;flex:none;background:#fff;border-radius:8px;padding:2px}
+.nosprite .thumbs{display:none}
+.tname{font-weight:700;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── 가로 화면: 패널을 좌우로 ── */
+@media (orientation:landscape) and (min-aspect-ratio:6/5){
+  #app{grid-template-columns:minmax(118px,16vw) minmax(0,1fr) minmax(118px,16vw);grid-template-rows:minmax(0,1fr) auto;
+    grid-template-areas:"p1 board p2" "p1 ctrl p2"}
+  .panel{flex-direction:column;justify-content:center;text-align:center;padding:10px 6px;gap:10px}
+  .info{flex:none;width:100%}
+  .nick{justify-content:center;font-size:13px}
+  .score{font-size:clamp(34px,10vh,58px)}
+  .acts{justify-content:center}
+  .act{width:46px;height:46px}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <section class="panel" id="panel0">
+    <div class="info"><div class="nick"><i class="dot"></i><span id="nick0">-</span></div><div class="score" id="score0">0</div></div>
+    <div class="acts">
+      <button class="act" id="hint0" aria-label="힌트"><span class="ic">💡</span><b>0</b></button>
+      <button class="act" id="stone0" aria-label="누름돌"><span class="ic">🪨</span><b>0</b></button>
+    </div>
+  </section>
+  <section class="panel" id="panel1">
+    <div class="info"><div class="nick"><i class="dot"></i><span id="nick1">-</span></div><div class="score" id="score1">0</div></div>
+    <div class="acts">
+      <button class="act" id="hint1" aria-label="힌트"><span class="ic">💡</span><b>0</b></button>
+      <button class="act" id="stone1" aria-label="누름돌"><span class="ic">🪨</span><b>0</b></button>
+    </div>
+  </section>
+
+  <main id="board">
+    <div id="grid"></div>
+    <div id="pill">💡·🪨 버튼으로 횟수 설정 → 카드를 고르면 시작!</div>
+    <div id="toast"></div>
+  </main>
+
+  <nav id="ctrl">
+    <div class="seg" id="layouts">
+      <button data-l="0">3×4</button><button data-l="1">4×6</button><button data-l="2">5×8</button><button data-l="3">8×12</button>
+    </div>
+    <button class="sq" id="theme" aria-label="카드 테마">🎨</button>
+    <button class="sq" id="gold" aria-label="황금카드">🌟</button>
+    <button class="sq" id="newgame" aria-label="새 게임">↻</button>
+  </nav>
+</div>
+
+<div id="modal" class="hidden"><div class="box"><h2 id="mTitle"></h2><div id="mBody"></div><div id="mBtns"></div></div></div>
+
+<script src="themes/config.js"></script>
+<script src="themes/themes.js"></script>
+<script>
+(()=>{
+'use strict';
+const $=s=>document.querySelector(s);
+const LAYOUTS=[[3,4],[4,6],[5,8],[8,12]];
+const SYMS=['🍎','🍊','🍋','🍉','🍇','🍓','🍒','🍑','🥝','🍍','🥥','🥕','🌽','🍄','🍔','🍕','🍩','🍪','🎂','🍭',
+  '🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🦆','🦉',
+  '⚽','🏀','🎲','🎯','🎸','🚗','🚀','⭐'];
+/* 카드 그림: themes/config.js(window.CARD_SPRITE)가 있으면 스프라이트 시트, 없거나 못 불러오면 이모지 글자로 대체 */
+const SPR=window.CARD_SPRITE||null;
+const FACES=SPR&&Array.isArray(SPR.faces)&&SPR.faces.length
+  ?SPR.faces.map(f=>({id:String(f.id),i:f.i,emoji:f.emoji||'?'}))
+  :SYMS.map((e,i)=>({id:'e'+i,i,emoji:e}));
+const root=document.documentElement;
+const posOf=i=>`${SPR.cols>1?(i%SPR.cols)/(SPR.cols-1)*100:0}% ${SPR.rows>1?Math.floor(i/SPR.cols)/(SPR.rows-1)*100:0}%`;
+/* 테마 = themes 폴더의 스프라이트 파일 하나 (이름 = 파일 이름). 목록은 themes/themes.js */
+const THEMES=SPR?(Array.isArray(window.CARD_THEMES)&&window.CARD_THEMES.length?window.CARD_THEMES.map(String):[SPR.default||'default']):[];
+const themeUrl=name=>new URL((SPR.dir||'')+encodeURIComponent(name)+(SPR.ext||'.png'),location.href).href;
+function applyTheme(){
+  if(!SPR){root.classList.add('nosprite');return}
+  const url=themeUrl(cfg.theme);
+  root.style.setProperty('--sheet',`url("${url}")`);
+  root.style.setProperty('--cols',SPR.cols);root.style.setProperty('--rows',SPR.rows);
+  root.classList.remove('nosprite');
+  const im=new Image();im.onerror=()=>{if(themeUrl(cfg.theme)===url)root.classList.add('nosprite')};im.src=url;
+}
+const NICKS=['Sleepy Panda','Lucky Fox','Brave Otter','Quick Owl','Jolly Koala','Misty Wolf','Cosmic Cat','Tiny Tiger','Happy Hippo','Silent Falcon',
+  'Mighty Mouse','Clever Crow','Gentle Bear','Funky Frog','Sunny Duck','Rocket Rabbit','Cheeky Monkey','Dizzy Dolphin','Noble Lion','Swift Deer',
+  'Wild Whale','Frosty Penguin','Neon Gecko','Crimson Hawk','Velvet Moth','Turbo Turtle','Mellow Moose','Zesty Zebra','Pixel Puma','Maple Badger',
+  'Jade Lynx','Echo Raven','Amber Bee','Blue Bison','Snowy Seal','Salty Crab','Bouncy Bunny','Sneaky Snail','Golden Goose','Ruby Robin',
+  'Shadow Shark','Proud Peacock','Witty Walrus','Lazy Llama','Atomic Ant','Radiant Raccoon','Stormy Stork','Merry Meerkat','Plucky Parrot','Dapper Dingo',
+  'Cuddly Camel','Bold Beetle','Nimble Newt','Breezy Bat'];
+
+/* 설정(첫 카드 선택 전에 바꿀 수 있는 값) — 기기에 기억 */
+const KEY='memoryDuelCfg';
+const cfg={layout:1,gold:false,theme:'',hints:[1,1],stones:[1,1]};
+try{
+  const j=JSON.parse(localStorage.getItem(KEY)||'null');
+  if(j){
+    if(Number.isInteger(j.layout)&&j.layout>=0&&j.layout<4)cfg.layout=j.layout;
+    cfg.gold=!!j.gold;
+    if(typeof j.theme==='string')cfg.theme=j.theme;
+    const cl=a=>Array.isArray(a)&&a.length===2?a.map(v=>Math.max(0,Math.min(3,v|0))):[1,1];
+    cfg.hints=cl(j.hints);cfg.stones=cl(j.stones);
+  }
+}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(cfg))}catch(e){}};
+if(SPR&&!THEMES.includes(cfg.theme))cfg.theme=THEMES.includes(SPR.default)?SPR.default:THEMES[0];
+applyTheme();
+
+const el={board:$('#board'),grid:$('#grid'),toast:$('#toast'),pill:$('#pill'),modal:$('#modal'),
+  gold:$('#gold'),theme:$('#theme'),newgame:$('#newgame'),layouts:[...document.querySelectorAll('#layouts button')]};
+const P=[0,1].map(p=>({panel:$('#panel'+p),nick:$('#nick'+p),score:$('#score'+p),hint:$('#hint'+p),stone:$('#stone'+p)}));
+
+let S=null,els=[];
+
+const shuffle=a=>{for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const isStoned=id=>S.stone[0]===id||S.stone[1]===id;
+const canStone=c=>!c.matched&&!c.picked&&!c.hinting&&!isStoned(c.id);
+const unmatched=()=>S.cards.filter(c=>!c.matched).length;
+
+let toastT=0;
+function toast(msg,ms=1700){el.toast.textContent=msg;el.toast.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>el.toast.classList.remove('show'),ms)}
+
+function openModal(title,body,btns){
+  $('#mTitle').textContent=title;
+  const mb=$('#mBody');mb.textContent='';
+  if(typeof body==='string')mb.textContent=body;else mb.appendChild(body);
+  const box=$('#mBtns');box.innerHTML='';
+  btns.forEach(b=>{const x=document.createElement('button');x.textContent=b.label;x.className=b.cls||'';
+    x.onclick=()=>{el.modal.classList.add('hidden');if(b.fn)b.fn()};box.appendChild(x)});
+  el.modal.classList.remove('hidden');
+}
+
+/* ── 새 판 준비 ── */
+function setup(keep){
+  while(cfg.layout>0&&LAYOUTS[cfg.layout][0]*LAYOUTS[cfg.layout][1]/2>FACES.length)cfg.layout--;  // 그림 종류가 모자란 큰 배치는 쓰지 않음
+  const [a,b]=LAYOUTS[cfg.layout],n=a*b;
+  const deck=shuffle(shuffle(FACES.slice()).slice(0,n/2).flatMap(f=>[f,f]));
+  const cards=deck.map((f,id)=>({id,sym:f.id,face:f,golden:false,matched:false,by:-1,picked:false,hinting:false}));
+  S={cards,
+    names:keep&&S?S.names:shuffle(NICKS.slice()).slice(0,2),
+    cur:keep&&S?S.cur:(Math.random()<.5?0:1),
+    scores:[0,0],started:false,over:false,lock:false,picked:[],hinted:new Set(),
+    stone:[-1,-1],stoneMode:false,hints:cfg.hints.slice(),stones:cfg.stones.slice()};
+  assignGold();buildDom();fit();update();
+}
+function assignGold(){
+  S.cards.forEach(c=>c.golden=false);
+  if(cfg.gold)S.cards[Math.floor(Math.random()*S.cards.length)].golden=true;
+}
+function buildDom(){
+  el.grid.innerHTML='';
+  els=S.cards.map((c,i)=>{
+    const d=document.createElement('div');d.className='card';d.dataset.i=i;
+    d.innerHTML='<div class="inner"><div class="face back"><i class="img"></i></div><div class="face front"><i class="img"></i><span class="sym"></span><i class="badge">★3</i></div></div><div class="stone"><i class="img"></i><span class="sym">🪨</span></div>';
+    d.querySelector('.front .sym').textContent=c.face.emoji;
+    if(SPR){
+      d.querySelector('.back .img').style.backgroundPosition=posOf(SPR.back);
+      d.querySelector('.front .img').style.backgroundPosition=posOf(c.face.i);
+      d.querySelector('.stone .img').style.backgroundPosition=posOf(SPR.stone);
+    }
+    el.grid.appendChild(d);return d;
+  });
+}
+
+/* ── 카드판 크기: 가능한 가장 넓게, 긴 쪽에 큰 수 ── */
+function fit(){
+  if(!S)return;
+  const [sh,lg]=LAYOUTS[cfg.layout];
+  const W=el.board.clientWidth,H=el.board.clientHeight;
+  if(W<=0||H<=0)return;
+  const land=W>=H,cols=land?lg:sh,rows=land?sh:lg;
+  const base=[10,8,5,3][cfg.layout];
+  const gap=Math.max(2,Math.round(base*Math.min(1,Math.min(W,H)/520)));
+  let cw=(W-gap*(cols-1))/cols,ch=(H-gap*(rows-1))/rows;
+  const MAXR=1.4;
+  if(cw>ch*MAXR)cw=ch*MAXR;else if(ch>cw*MAXR)ch=cw*MAXR;
+  cw=Math.floor(cw);ch=Math.floor(ch);
+  const g=el.grid.style,mn=Math.min(cw,ch);
+  g.gridTemplateColumns=`repeat(${cols},${cw}px)`;g.gridTemplateRows=`repeat(${rows},${ch}px)`;g.gap=gap+'px';
+  g.width=(cols*cw+gap*(cols-1))+'px';g.height=(rows*ch+gap*(rows-1))+'px';
+  g.setProperty('--fs',Math.floor(mn*.56)+'px');g.setProperty('--img',Math.floor(mn*.78)+'px');g.setProperty('--r',Math.max(4,Math.round(mn*.14))+'px');
+}
+
+/* ── 화면 갱신 ── */
+function update(){
+  S.cards.forEach((c,i)=>{
+    const e=els[i];
+    e.classList.toggle('flipped',c.picked||c.hinting||c.matched);
+    e.classList.toggle('matched',c.matched);
+    e.classList.toggle('m0',c.matched&&c.by===0);
+    e.classList.toggle('m1',c.matched&&c.by===1);
+    e.classList.toggle('gold',c.golden&&(c.picked||c.matched)); // 힌트로는 황금 표시가 드러나지 않음
+    e.classList.toggle('stoned',isStoned(i)&&!c.matched);
+    e.classList.toggle('s0',S.stone[0]===i);
+    e.classList.toggle('s1',S.stone[1]===i);
+    e.classList.toggle('target',S.stoneMode&&canStone(c));
+  });
+  const setupPhase=!S.started;
+  [0,1].forEach(p=>{
+    const x=P[p],mine=S.cur===p&&!S.over;
+    x.nick.textContent=S.names[p];x.score.textContent=S.scores[p];
+    x.panel.classList.toggle('active',mine);
+    x.hint.querySelector('b').textContent=S.hints[p];
+    x.stone.querySelector('b').textContent=S.stones[p];
+    x.hint.classList.toggle('setup',setupPhase);x.stone.classList.toggle('setup',setupPhase);
+    x.hint.classList.toggle('dis',!setupPhase&&!(mine&&S.hints[p]>0&&!S.lock));
+    x.stone.classList.toggle('dis',!setupPhase&&!(mine&&S.stones[p]>0&&S.stone[p]<0&&!S.lock));
+    x.stone.classList.toggle('on',S.stoneMode&&mine);
+    x.stone.classList.toggle('placed',S.stone[p]>=0);
+  });
+  el.layouts.forEach((b,i)=>{b.classList.toggle('on',cfg.layout===i);b.classList.toggle('dis',S.started)});
+  el.gold.classList.toggle('on',cfg.gold);el.gold.classList.toggle('dis',S.started);el.theme.classList.toggle('dis',S.started);
+  el.pill.classList.toggle('hide',S.started);
+}
+function bump(p){const s=P[p].score;s.classList.remove('bump');void s.offsetWidth;s.classList.add('bump')}
+
+/* ── 턴 진행 ── */
+function ensureSelectable(){
+  // 누름돌 때문에 고를 수 있는 카드가 2장 미만이면 누름돌을 걷어낸다 (교착 방지)
+  if(S.cards.filter(c=>!c.matched&&!isStoned(c.id)).length<2)S.stone=[-1,-1];
+}
+function beginTurn(p){
+  S.cur=p;S.hinted=new Set();S.stoneMode=false;S.picked=[];
+  if(S.stone[p]>=0)S.stone[p]=-1;           // 내 누름돌은 내 턴 직전에 사라짐
+  ensureSelectable();update();
+  toast('▶ '+S.names[p]+' 차례',1000);
+}
+function onCard(i){
+  if(S.over||S.lock)return;
+  const c=S.cards[i];
+  if(S.stoneMode){placeStone(i);return}
+  if(c.matched||c.picked)return;
+  if(isStoned(i)){toast('🪨 누름돌이 놓인 카드는 고를 수 없어요');return}
+  S.started=true;c.picked=true;S.picked.push(i);update();
+  if(S.picked.length===2){
+    S.lock=true;
+    setTimeout(()=>{
+      const [a,b]=S.picked.map(k=>S.cards[k]);
+      a.sym===b.sym?onMatch(a,b):onMiss(a,b);
+    },650);
+  }
+}
+function onMatch(a,b){
+  let pts=0,hinted=0,gold=false;
+  for(const c of [a,b]){
+    if(c.golden)gold=true;
+    if(S.hinted.has(c.id))hinted++;else pts+=c.golden?3:1;
+  }
+  a.matched=b.matched=true;a.picked=b.picked=false;a.by=b.by=S.cur;S.picked=[];
+  S.scores[S.cur]+=pts;bump(S.cur);
+  let msg=(gold?'🌟 황금카드! ':'✨ ')+'+'+pts;
+  if(hinted)msg+=' (💡 힌트로 본 카드는 0점)';
+  toast(msg,1900);
+  if(navigator.vibrate)try{navigator.vibrate(30)}catch(e){}
+  if(S.cards.every(c=>c.matched)){finish();return}
+  ensureSelectable();S.lock=false;update();   // 맞히면 같은 사람이 계속
+}
+function onMiss(a,b){
+  setTimeout(()=>{
+    a.picked=b.picked=false;S.picked=[];update();
+    setTimeout(()=>{beginTurn(1-S.cur);S.lock=false;update()},320);
+  },750);
+}
+function finish(){
+  S.over=true;S.lock=true;update();
+  setTimeout(()=>{
+    const [a,b]=S.scores;
+    const t=a===b?'무승부!':'🏆 '+S.names[a>b?0:1]+' 승리!';
+    openModal(t,S.names[0]+'  '+a+' : '+b+'  '+S.names[1],
+      [{label:'새 게임',cls:'primary',fn:()=>setup(false)},{label:'보드 보기'}]);
+  },1000);
+}
+
+/* ── 힌트 ── */
+function onHint(p){
+  if(!S.started){S.hints[p]=(S.hints[p]+1)%4;cfg.hints=S.hints.slice();save();update();return}
+  if(S.over)return;
+  if(p!==S.cur){toast('상대 턴이에요');return}
+  if(S.lock)return;
+  if(S.hints[p]<=0){toast('남은 힌트가 없어요');return}
+  const cand=S.cards.filter(c=>!c.matched&&!c.picked&&!c.hinting&&!isStoned(c.id));
+  if(!cand.length){toast('힌트로 볼 카드가 없어요');return}
+  const c=cand[Math.floor(Math.random()*cand.length)];
+  S.started=true;S.stoneMode=false;S.hints[p]--;S.hinted.add(c.id);
+  c.hinting=true;S.lock=true;update();
+  setTimeout(()=>{c.hinting=false;update();setTimeout(()=>{S.lock=false;update()},360)},1100);
+}
+
+/* ── 누름돌 ── */
+function onStone(p){
+  if(!S.started){S.stones[p]=(S.stones[p]+1)%4;cfg.stones=S.stones.slice();save();update();return}
+  if(S.over)return;
+  if(p!==S.cur){toast('상대 턴이에요');return}
+  if(S.lock)return;
+  if(S.stoneMode){S.stoneMode=false;update();return}
+  if(S.stones[p]<=0){toast('남은 누름돌이 없어요');return}
+  if(S.stone[p]>=0){toast('누름돌은 한 번에 하나만 둘 수 있어요');return}
+  if(S.picked.length>0){toast('카드를 고르기 전에 놓아주세요');return}
+  if(unmatched()<4){toast('남은 카드가 적어 놓을 수 없어요');return}
+  S.stoneMode=true;update();toast('🪨 누름돌을 놓을 카드를 고르세요',2400);
+}
+function placeStone(i){
+  if(!canStone(S.cards[i])){toast('여기에는 놓을 수 없어요');return}
+  S.stone[S.cur]=i;S.stones[S.cur]--;S.stoneMode=false;S.started=true;update();
+  toast('🪨 누름돌 배치!',1100);
+}
+
+/* ── 테마 선택 (첫 카드를 고르기 전에만) ── */
+function openThemes(){
+  if(S.started){toast('게임이 시작되면 테마를 바꿀 수 없어요');return}
+  const list=document.createElement('div');list.className='themes';
+  THEMES.forEach(name=>{
+    const b=document.createElement('button');b.className='theme'+(name===cfg.theme?' on':'');
+    const th=document.createElement('span');th.className='thumbs';
+    [0,1,2].forEach(k=>{
+      const i=document.createElement('i');i.className='img';
+      i.style.setProperty('--sheet',`url("${themeUrl(name)}")`);i.style.setProperty('--img','36px');
+      i.style.backgroundPosition=posOf(FACES[k]?FACES[k].i:k);th.appendChild(i);
+    });
+    const t=document.createElement('span');t.className='tname';t.textContent=name;
+    b.append(th,t);
+    b.onclick=()=>{cfg.theme=name;save();applyTheme();el.modal.classList.add('hidden');toast('🎨 '+name,1200)};
+    list.appendChild(b);
+  });
+  openModal('🎨 카드 테마',list,[{label:'닫기'}]);
+}
+
+/* ── 이벤트 ── */
+el.grid.addEventListener('click',e=>{const t=e.target.closest('.card');if(t&&S)onCard(+t.dataset.i)});
+[0,1].forEach(p=>{P[p].hint.onclick=()=>onHint(p);P[p].stone.onclick=()=>onStone(p)});
+el.layouts.forEach(b=>b.onclick=()=>{
+  if(S.started){toast('게임이 시작되면 배치를 바꿀 수 없어요');return}
+  const l=+b.dataset.l,need=LAYOUTS[l][0]*LAYOUTS[l][1]/2;
+  if(need>FACES.length){toast('카드 그림이 '+need+'종 필요해요 (지금 '+FACES.length+'종)');return}
+  cfg.layout=l;save();setup(true);
+});
+el.gold.onclick=()=>{
+  if(S.started){toast('게임이 시작되면 바꿀 수 없어요');return}
+  cfg.gold=!cfg.gold;save();assignGold();update();
+  toast(cfg.gold?'🌟 황금카드 ON — 3점짜리 카드가 숨어 있어요':'황금카드 OFF');
+};
+if(!SPR)el.theme.style.display='none';
+el.theme.onclick=openThemes;
+el.newgame.onclick=()=>{
+  if(S.started&&!S.over)openModal('새 게임','진행 중인 게임을 끝내고 새로 시작할까요?',[{label:'취소'},{label:'새 게임',cls:'primary',fn:()=>setup(false)}]);
+  else setup(false);
+};
+if('ResizeObserver' in window)new ResizeObserver(fit).observe(el.board);
+addEventListener('resize',fit);addEventListener('orientationchange',()=>setTimeout(fit,150));
+
+/* ── 확대 방지 ── */
+['gesturestart','gesturechange','gestureend'].forEach(t=>document.addEventListener(t,e=>e.preventDefault()));
+document.addEventListener('touchmove',e=>{if(e.touches.length>1)e.preventDefault()},{passive:false});
+document.addEventListener('dblclick',e=>e.preventDefault());
+document.addEventListener('contextmenu',e=>e.preventDefault());
+document.addEventListener('wheel',e=>{if(e.ctrlKey)e.preventDefault()},{passive:false});
+
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol))
+  addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+
+window.__MC={get S(){return S},cfg,setup};
+setup(false);
+})();
+</script>
+</body>
+</html>
