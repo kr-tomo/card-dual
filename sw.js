@@ -1,4 +1,4 @@
-const CACHE = 'memory-duel-v3';
+const CACHE = 'memory-duel-v4';
 const ASSETS = ['./', 'index.html', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png', 'themes/config.js', 'themes/themes.js', 'themes/emoji.png'];
 
 self.addEventListener('install', e => {

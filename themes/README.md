@@ -5,7 +5,7 @@
 ## 테마 추가하기
 1. 아래 시트 규칙대로 PNG를 그려서 이 폴더에 넣습니다. (예: `themes/ocean.png` → 테마 이름 `ocean`)
 2. 목록을 갱신합니다: `node tools/update-themes.js` (이 스크립트가 `themes/themes.js`를 다시 씁니다). 스크립트를 못 돌리면 `themes/themes.js`의 목록에 이름을 직접 추가해도 됩니다.
-3. 이미 설치한 PWA에서 안 보이면 `sw.js` 맨 위의 `CACHE` 이름(`memory-duel-v3`)을 올려 주세요 (예: v4).
+3. 이미 설치한 PWA에서 안 보이면 `sw.js` 맨 위의 `CACHE` 이름(`memory-duel-v4`)을 올려 주세요 (예: v5).
 
 ## 시트 규칙 (모든 테마 공통, `themes/config.js`)
 - 가로 8칸 × 세로 7칸, 한 칸 192×192px (전체 1536×1344), 배경 투명 PNG
